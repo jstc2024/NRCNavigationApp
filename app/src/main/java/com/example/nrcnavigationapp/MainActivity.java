@@ -12,20 +12,27 @@ import org.osmdroid.util.GeoPoint;
 public class MainActivity extends AppCompatActivity {
 
     private MapView map;
+    private DatabaseHelper databaseHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         // Initialize OSMDroid
+        Configuration.getInstance().setUserAgentValue("NRCNavigationApp");
+
         Configuration.getInstance().load(
                 getApplicationContext(),
                 getSharedPreferences("osmdroid", MODE_PRIVATE)
         );
 
         setContentView(R.layout.activity_main);
+        //databaseHelper = new DatabaseHelper(this);
+        //databaseHelper.getWritableDatabase();
 
         map = findViewById(R.id.map);
+        map.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK);
+        map.getTileProvider().clearTileCache();
 
         map.setMultiTouchControls(true);
 
