@@ -18,21 +18,26 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Initialize OSMDroid
-        Configuration.getInstance().setUserAgentValue("NRCNavigationApp");
-
+        // Initializing OSMDroid
+        Configuration.getInstance().setDebugMode(true);
+        // Using a completely fresh cache directory to bypass any cached "Blocked" tiles
+        Configuration.getInstance().setOsmdroidTileCache(new java.io.File(getCacheDir(), "osmdroid_tiles_fresh"));
+        
         Configuration.getInstance().load(
                 getApplicationContext(),
-                getSharedPreferences("osmdroid", MODE_PRIVATE)
+                androidx.preference.PreferenceManager.getDefaultSharedPreferences(getApplicationContext())
         );
+        
+        // Very specific User-Agent as required by OSM policy
+        String userAgent = "NRCNavigationApp/1.1 (Unique-ID: " + System.currentTimeMillis() + ")";
+        Configuration.getInstance().setUserAgentValue("NRCNavigationApp/1.1");
 
         setContentView(R.layout.activity_main);
-        //databaseHelper = new DatabaseHelper(this);
-        //databaseHelper.getWritableDatabase();
+        databaseHelper = new DatabaseHelper(this);
+        databaseHelper.getWritableDatabase();
 
         map = findViewById(R.id.map);
-        map.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK);
-        map.getTileProvider().clearTileCache();
+        map.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.OpenTopo);
 
         map.setMultiTouchControls(true);
 
