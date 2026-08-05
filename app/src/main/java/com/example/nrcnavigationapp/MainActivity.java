@@ -1,6 +1,7 @@
 package com.example.nrcnavigationapp;
 
 import android.os.Bundle;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -8,6 +9,10 @@ import org.osmdroid.config.Configuration;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.MapController;
 import org.osmdroid.util.GeoPoint;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -35,6 +40,14 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         databaseHelper = new DatabaseHelper(this);
         databaseHelper.getWritableDatabase();
+        if (!databaseHelper.hasLocations()) {
+            importLocationsFromCSV();
+        }
+        Toast.makeText(
+                this,
+                "Locations imported: " + databaseHelper.getAllLocations().getCount(),
+                Toast.LENGTH_LONG
+        ).show();
 
         map = findViewById(R.id.map);
         map.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.OpenTopo);
@@ -61,5 +74,50 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         map.onPause();
+    }
+    private void importLocationsFromCSV() {
+
+        try {
+
+            InputStream is = getAssets().open("NRC coordinates(1).csv");
+
+            BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(is));
+
+            String line;
+
+            // Skip the header row
+            reader.readLine();
+
+            while ((line = reader.readLine()) != null) {
+
+                String[] columns = line.split(",");
+
+                if (columns.length >= 3) {
+
+                    String name = columns[0].trim();
+
+                    double latitude = Double.parseDouble(
+                            columns[1].replace("\"", "").trim()
+                    );
+
+                    double longitude = Double.parseDouble(
+                            columns[2].replace("\"", "").trim()
+                    );
+
+                    databaseHelper.insertLocation(
+                            name,
+                            "Location",
+                            latitude,
+                            longitude
+                    );
+                }
+            }
+
+            reader.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
