@@ -13,6 +13,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+//
+import android.database.Cursor;
+import org.osmdroid.views.overlay.Marker;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,18 +41,21 @@ public class MainActivity extends AppCompatActivity {
         Configuration.getInstance().setUserAgentValue("NRCNavigationApp/1.1");
 
         setContentView(R.layout.activity_main);
+        map = findViewById(R.id.map);
         databaseHelper = new DatabaseHelper(this);
         databaseHelper.getWritableDatabase();
         if (!databaseHelper.hasLocations()) {
             importLocationsFromCSV();
         }
+        showLocationsOnMap();
+
         Toast.makeText(
                 this,
                 "Locations imported: " + databaseHelper.getAllLocations().getCount(),
                 Toast.LENGTH_LONG
         ).show();
 
-        map = findViewById(R.id.map);
+
         map.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.OpenTopo);
 
         map.setMultiTouchControls(true);
@@ -119,5 +125,37 @@ public class MainActivity extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    private void showLocationsOnMap() {
+
+        Cursor cursor = databaseHelper.getAllLocations();
+
+        while (cursor.moveToNext()) {
+
+            String name = cursor.getString(
+                    cursor.getColumnIndexOrThrow("name")
+            );
+
+            double latitude = cursor.getDouble(
+                    cursor.getColumnIndexOrThrow("latitude")
+            );
+
+            double longitude = cursor.getDouble(
+                    cursor.getColumnIndexOrThrow("longitude")
+            );
+
+            GeoPoint point = new GeoPoint(latitude, longitude);
+
+            Marker marker = new Marker(map);
+
+            marker.setPosition(point);
+            marker.setTitle(name);
+
+            map.getOverlays().add(marker);
+        }
+
+        cursor.close();
+
+        map.invalidate();
     }
 }
