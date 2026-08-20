@@ -2,6 +2,8 @@ package com.example.nrcnavigationapp;
 
 import android.os.Bundle;
 import android.widget.Toast;
+import android.widget.EditText;
+
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -20,11 +22,14 @@ import org.osmdroid.views.overlay.Marker;
 public class MainActivity extends AppCompatActivity {
 
     private MapView map;
+
+    private EditText searchLocation;
     private DatabaseHelper databaseHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
 
         // Initializing OSMDroid
         Configuration.getInstance().setDebugMode(true);
@@ -42,6 +47,18 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
         map = findViewById(R.id.map);
+        searchLocation = findViewById(R.id.searchLocation);
+        searchLocation.setOnEditorActionListener((v, actionId, event) -> {
+
+            String searchText = searchLocation.getText().toString().trim();
+
+            if (!searchText.isEmpty()) {
+                searchLocation(searchText);
+            }
+
+            return true;
+        });
+
         databaseHelper = new DatabaseHelper(this);
         databaseHelper.getWritableDatabase();
         if (!databaseHelper.hasLocations()) {
@@ -143,6 +160,10 @@ public class MainActivity extends AppCompatActivity {
             double longitude = cursor.getDouble(
                     cursor.getColumnIndexOrThrow("longitude")
             );
+            android.util.Log.d(
+                    "NRC_COORDINATES",
+                    name + " | Latitude: " + latitude + " | Longitude: " + longitude
+            );
 
             GeoPoint point = new GeoPoint(latitude, longitude);
 
@@ -157,5 +178,48 @@ public class MainActivity extends AppCompatActivity {
         cursor.close();
 
         map.invalidate();
+    }
+    private void searchLocation(String searchText) {
+
+        Cursor cursor = databaseHelper.getReadableDatabase().rawQuery(
+                "SELECT * FROM locations WHERE name LIKE ?",
+                new String[]{"%" + searchText + "%"}
+        );
+
+        if (cursor.moveToFirst()) {
+
+            double latitude = cursor.getDouble(
+                    cursor.getColumnIndexOrThrow("latitude")
+            );
+
+            double longitude = cursor.getDouble(
+                    cursor.getColumnIndexOrThrow("longitude")
+            );
+
+            String name = cursor.getString(
+                    cursor.getColumnIndexOrThrow("name")
+            );
+
+            GeoPoint point = new GeoPoint(latitude, longitude);
+
+            map.getController().setZoom(19.0);
+            map.getController().setCenter(point);
+
+            Toast.makeText(
+                    this,
+                    "Found: " + name,
+                    Toast.LENGTH_SHORT
+            ).show();
+
+        } else {
+
+            Toast.makeText(
+                    this,
+                    "Location not found",
+                    Toast.LENGTH_SHORT
+            ).show();
+        }
+
+        cursor.close();
     }
 }

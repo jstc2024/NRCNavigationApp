@@ -1,6 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<org.osmdroid.views.MapView
+
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/map"
     android:layout_width="match_parent"
-    android:layout_height="match_parent" />
+    android:layout_height="match_parent">
+
+    <!-- The campus map -->
+    <org.osmdroid.views.MapView
+        android:id="@+id/map"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Search box -->
+    <EditText
+        android:id="@+id/searchLocation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:background="@android:drawable/editbox_background"
+        android:hint="Search campus location..."
+        android:padding="12dp"
+        android:singleLine="true"
+        android:elevation="8dp"
+        android:inputType="text" />
+
+</FrameLayout>
