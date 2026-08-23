@@ -15,9 +15,20 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-//
+
 import android.database.Cursor;
 import org.osmdroid.views.overlay.Marker;
+
+// importing GPS access libraries
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.location.Location;
+import android.location.LocationManager;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -25,6 +36,8 @@ public class MainActivity extends AppCompatActivity {
 
     private EditText searchLocation;
     private DatabaseHelper databaseHelper;
+    // requesting for GPS permission
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -199,6 +212,7 @@ public class MainActivity extends AppCompatActivity {
             String name = cursor.getString(
                     cursor.getColumnIndexOrThrow("name")
             );
+            checkUserLocation();
 
             GeoPoint point = new GeoPoint(latitude, longitude);
 
@@ -221,5 +235,49 @@ public class MainActivity extends AppCompatActivity {
         }
 
         cursor.close();
+    }
+    // checking the user location
+    private void checkUserLocation() {
+
+        LocationManager locationManager =
+                (LocationManager) getSystemService(LOCATION_SERVICE);
+
+        boolean gpsEnabled = locationManager.isProviderEnabled(
+                LocationManager.GPS_PROVIDER
+        );
+
+        if (!gpsEnabled) {
+
+            Toast.makeText(
+                    this,
+                    "GPS is not available. Indoor positioning will be used.",
+                    Toast.LENGTH_LONG
+            ).show();
+
+            return;
+        }
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED) {
+
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    LOCATION_PERMISSION_REQUEST_CODE
+            );
+
+            return;
+        }
+
+        Toast.makeText(
+                this,
+                "GPS is available. Outdoor positioning will be used.",
+                Toast.LENGTH_LONG
+        ).show();
     }
 }
