@@ -24,6 +24,7 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
+import android.location.LocationListener;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -276,8 +277,92 @@ public class MainActivity extends AppCompatActivity {
 
         Toast.makeText(
                 this,
-                "GPS is available. Outdoor positioning will be used.",
+                "GPS is available.Getting your location...",
                 Toast.LENGTH_LONG
         ).show();
+        getCurrentGPSLocation();
     }
+    private void getCurrentGPSLocation() {
+        // testing
+        android.util.Log.d(
+                "NRC_GPS",
+                "getCurrentGPSLocation() was called"
+        );
+
+        LocationManager locationManager =
+                (LocationManager) getSystemService(LOCATION_SERVICE);
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED) {
+
+            Toast.makeText(
+                    this,
+                    "Location permission is required.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+        //TESTTING
+        android.util.Log.d(
+                "NRC_GPS",
+                "Requesting GPS location..."
+        );
+
+        locationManager.requestSingleUpdate(
+
+                LocationManager.GPS_PROVIDER,
+                new LocationListener() {
+
+                    @Override
+                    public void onLocationChanged(Location location) {
+
+                        double latitude = location.getLatitude();
+                        double longitude = location.getLongitude();
+                        float accuracy = location.getAccuracy();
+
+                        android.util.Log.d(
+                                "NRC_GPS",
+                                "Current location: Latitude = "
+                                        + latitude
+                                        + ", Longitude = "
+                                        + longitude
+                                        + ", Accuracy = "
+                                        + accuracy
+                                        + " meters"
+                        );
+                        GeoPoint userLocation =
+                                new GeoPoint(latitude, longitude);
+
+                        map.getController().setZoom(19.0);
+                        map.getController().setCenter(userLocation);
+
+                        Toast.makeText(
+                                MainActivity.this,
+                                "Your location found.",
+                                Toast.LENGTH_SHORT
+                        ).show();
+                    }
+
+                    @Override
+                    public void onProviderEnabled(String provider) {
+                    }
+
+                    @Override
+                    public void onProviderDisabled(String provider) {
+                    }
+
+                    @Override
+                    public void onStatusChanged(
+                            String provider,
+                            int status,
+                            android.os.Bundle extras) {
+                    }
+                },
+                null
+        );
+    }
+
 }
