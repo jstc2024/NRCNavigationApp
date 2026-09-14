@@ -37,6 +37,7 @@ public class MainActivity extends AppCompatActivity {
 
     private EditText searchLocation;
     private DatabaseHelper databaseHelper;
+    private Marker userLocationMarker;
     // requesting for GPS permission
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
 
@@ -336,8 +337,24 @@ public class MainActivity extends AppCompatActivity {
                         GeoPoint userLocation =
                                 new GeoPoint(latitude, longitude);
 
+                       // Creating  user's location marker
+                        if (userLocationMarker == null) {
+
+                            userLocationMarker = new Marker(map);
+
+                            userLocationMarker.setTitle("You are here");
+
+                            map.getOverlays().add(userLocationMarker);
+                        }
+
+                        // Updating the marker position
+                        userLocationMarker.setPosition(userLocation);
+
+                        // Move the map to the user's location
                         map.getController().setZoom(19.0);
                         map.getController().setCenter(userLocation);
+
+                        map.invalidate();
 
                         Toast.makeText(
                                 MainActivity.this,
