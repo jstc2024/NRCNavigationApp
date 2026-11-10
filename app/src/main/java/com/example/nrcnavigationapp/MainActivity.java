@@ -18,6 +18,8 @@ import java.io.InputStreamReader;
 
 import android.database.Cursor;
 import org.osmdroid.views.overlay.Marker;
+import org.osmdroid.views.overlay.Polyline;
+import android.graphics.Color;
 
 // importing GPS access libraries
 import android.Manifest;
@@ -29,7 +31,11 @@ import android.location.LocationListener;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-
+import android.widget.TextView;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
     private EditText searchLocation;
     private DatabaseHelper databaseHelper;
     private Marker userLocationMarker;
+
+    private TextView gpsInfo;
     // requesting for GPS permission
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 100;
 
@@ -62,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
         map = findViewById(R.id.map);
+        gpsInfo = findViewById(R.id.gpsInfo);
         searchLocation = findViewById(R.id.searchLocation);
         searchLocation.setOnEditorActionListener((v, actionId, event) -> {
 
@@ -74,18 +83,51 @@ public class MainActivity extends AppCompatActivity {
             return true;
         });
 
+
+
+        // Initialize the database FIRST
         databaseHelper = new DatabaseHelper(this);
         databaseHelper.getWritableDatabase();
-        if (!databaseHelper.hasLocations()) {
-            importLocationsFromCSV();
+
+        // Read and combine all three CSV files
+        Map<String, DatabaseHelper.LocationRecord> uniqueLocations =
+                new LinkedHashMap<>();
+
+        String[] csvFiles = {
+                "NRC coordinates(1).csv",
+                "Sample data.csv",
+                "corridors.csv"
+        };
+
+        for (String fileName : csvFiles) {
+            List<DatabaseHelper.LocationRecord> fileLocations =
+                    readLocationsFromCSV(fileName);
+
+            for (DatabaseHelper.LocationRecord location : fileLocations) {
+                String key = location.name.trim().toLowerCase(
+                        java.util.Locale.ROOT);
+
+                uniqueLocations.put(key, location);
+            }
         }
-        showLocationsOnMap();
+
+        List<DatabaseHelper.LocationRecord> allLocations =
+                new ArrayList<>(uniqueLocations.values());
+
+        // Refresh the database once
+        databaseHelper.syncLocations(allLocations);
+
+
 
         Toast.makeText(
                 this,
-                "Locations imported: " + databaseHelper.getAllLocations().getCount(),
+                "Locations refreshed: " + allLocations.size(),
                 Toast.LENGTH_LONG
         ).show();
+
+
+
+
 
 
         map.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.OpenTopo);
@@ -98,6 +140,15 @@ public class MainActivity extends AppCompatActivity {
         GeoPoint startPoint = new GeoPoint(-14.02, 33.67);
 
         mapController.setCenter(startPoint);
+        showLocationsOnMap();
+        drawWalkingRoute(
+                "Main_gate",
+                "Junction-1",
+                "Junction-2",
+                "TurnPoint",
+                "admin-turn-point",
+                "TurnPoint-2"
+        );
 
 
     }
@@ -113,12 +164,10 @@ public class MainActivity extends AppCompatActivity {
         super.onPause();
         map.onPause();
     }
-    private void importLocationsFromCSV() {
 
+    private void importLocationsFromCSV(String fileName) {
         try {
-
-            InputStream is = getAssets().open("NRC coordinates(1).csv");
-
+            InputStream is = getAssets().open(fileName);
             BufferedReader reader =
                     new BufferedReader(new InputStreamReader(is));
 
@@ -128,26 +177,64 @@ public class MainActivity extends AppCompatActivity {
             reader.readLine();
 
             while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
 
                 String[] columns = line.split(",");
 
-                if (columns.length >= 3) {
+                if (columns.length < 3) {
+                    continue;
+                }
 
-                    String name = columns[0].trim();
+                try {
+                    String name = columns[0]
+                            .replace("\"", "").trim();
 
-                    double latitude = Double.parseDouble(
-                            columns[1].replace("\"", "").trim()
-                    );
+                    if (name.isEmpty()) {
+                        continue;
+                    }
 
-                    double longitude = Double.parseDouble(
-                            columns[2].replace("\"", "").trim()
-                    );
+                    String latitudeText =
+                            columns[1].replace("\"", "").trim();
 
-                    databaseHelper.insertLocation(
-                            name,
-                            "Location",
-                            latitude,
-                            longitude
+                    String longitudeText =
+                            columns[2].replace("\"", "").trim();
+
+                   // Skipping locations that don't have coordinates yet
+                    if (latitudeText.isEmpty() || longitudeText.isEmpty()) {
+                        continue;
+                    }
+
+                    double latitude = Double.parseDouble(latitudeText);
+                    double longitude = Double.parseDouble(longitudeText);
+
+                    // Check whether this location already exists
+                    Cursor checkCursor =
+                            databaseHelper.getReadableDatabase()
+                                    .rawQuery(
+                                            "SELECT id FROM locations WHERE name = ? LIMIT 1",
+                                            new String[]{name}
+                                    );
+
+                    boolean exists = checkCursor.moveToFirst();
+                    checkCursor.close();
+
+                    if (!exists) {
+                        databaseHelper.insertLocation(
+                                name,
+                                "Location",
+                                latitude,
+                                longitude
+                        );
+                    }
+
+                } catch (NumberFormatException e) {
+                    android.util.Log.e(
+                            "CSV_IMPORT",
+                            "Invalid coordinates in " + fileName
+                                    + ": " + line,
+                            e
                     );
                 }
             }
@@ -155,9 +242,92 @@ public class MainActivity extends AppCompatActivity {
             reader.close();
 
         } catch (IOException e) {
-            e.printStackTrace();
+            android.util.Log.e(
+                    "CSV_IMPORT",
+                    "Could not read " + fileName,
+                    e
+            );
+
+            Toast.makeText(
+                    this,
+                    "Could not import " + fileName,
+                    Toast.LENGTH_LONG
+            ).show();
         }
+
+
     }
+
+    private List<DatabaseHelper.LocationRecord> readLocationsFromCSV(
+            String fileName) {
+
+        List<DatabaseHelper.LocationRecord> locations =
+                new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(getAssets().open(fileName)))) {
+
+            // Skip the header row
+            reader.readLine();
+
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
+
+                String[] columns = line.split(",");
+
+                if (columns.length < 3) {
+                    continue;
+                }
+
+                try {
+                    String name = columns[0]
+                            .replace("\"", "").trim();
+
+                    double latitude = Double.parseDouble(
+                            columns[1].replace("\"", "").trim());
+
+                    double longitude = Double.parseDouble(
+                            columns[2].replace("\"", "").trim());
+
+                    if (name.isEmpty()
+                            || latitude < -90 || latitude > 90
+                            || longitude < -180 || longitude > 180) {
+                        continue;
+                    }
+
+                    locations.add(
+                            new DatabaseHelper.LocationRecord(
+                                    name,
+                                    "Location",
+                                    latitude,
+                                    longitude
+                            )
+                    );
+
+                } catch (NumberFormatException e) {
+                    android.util.Log.e(
+                            "CSV_IMPORT",
+                            "Invalid row in " + fileName + ": " + line,
+                            e
+                    );
+                }
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "Could not read CSV file: " + fileName, e);
+        }
+
+        return locations;
+    }
+
+
+
+
     private void showLocationsOnMap() {
 
         Cursor cursor = databaseHelper.getAllLocations();
@@ -194,6 +364,52 @@ public class MainActivity extends AppCompatActivity {
 
         map.invalidate();
     }
+    // creating the campuss mapping
+
+    private void drawWalkingRoute(String... locationNames) {
+
+        Polyline walkingPath = new Polyline();
+
+        List<GeoPoint> routePoints = new ArrayList<>();
+
+        for (String locationName : locationNames) {
+
+            Cursor cursor = databaseHelper.getReadableDatabase().rawQuery(
+                    "SELECT latitude, longitude FROM locations WHERE LOWER(name) = LOWER(?) LIMIT 1",
+                    new String[]{locationName}
+            );
+
+            if (cursor.moveToFirst()) {
+
+                double latitude = cursor.getDouble(0);
+                double longitude = cursor.getDouble(1);
+
+                routePoints.add(new GeoPoint(latitude, longitude));
+
+            } else {
+
+                Toast.makeText(
+                        this,
+                        "Location not found: " + locationName,
+                        Toast.LENGTH_LONG
+                ).show();
+
+                cursor.close();
+                return;
+            }
+
+            cursor.close();
+        }
+
+        walkingPath.setPoints(routePoints);
+        walkingPath.setColor(Color.BLUE);
+        walkingPath.setWidth(8f);
+
+        map.getOverlays().add(walkingPath);
+
+        map.invalidate();
+    }
+
     private void searchLocation(String searchText) {
 
         Cursor cursor = databaseHelper.getReadableDatabase().rawQuery(
@@ -333,6 +549,12 @@ public class MainActivity extends AppCompatActivity {
                                         + ", Accuracy = "
                                         + accuracy
                                         + " meters"
+                        );
+                        gpsInfo.setText(
+                                "GPS Location\n"
+                                        + "Latitude: " + latitude + "\n"
+                                        + "Longitude: " + longitude + "\n"
+                                        + "Accuracy: " + accuracy + " m"
                         );
                         GeoPoint userLocation =
                                 new GeoPoint(latitude, longitude);
